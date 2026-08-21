@@ -5,3 +5,5 @@ cred_check.json
 unlock_card.py
 demo_card_unlocked.pdf
 *_unlocked.pdf
+dist/
+*.zip
