@@ -74,7 +74,17 @@ Plus repeated page headers, footers, page numbers, and an address preamble.
 
 ## Verified state
 
-`workflow.test.json` executed in real n8n (v2.35.7):
+Everything below ran in **real n8n (v2.35.7)**, not a simulation.
+
+| Path | Result |
+|---|---|
+| Digital PDF → parse → reconcile | 16/16 rows, 100% reconciled |
+| Scanned (image-only) PDF → live OCR → reconcile | 16/16 rows, 100%, closing 518,312 — identical to digital |
+| No-balance statement (card/invoice) | reports `not_applicable`, flags nothing (flaw #1) |
+| Locale: EU / Indian / round-number amounts | parsed correctly (flaw #4) |
+| All eight review flaws | fixed and verified (see below) |
+
+Full summary of the digital run:
 
 ```
 rows = 16   flagged = 0   reconciledPct = 100
@@ -83,23 +93,24 @@ dateOrder = DMY   dateOrderConfident = True
 printedOpening = 784,320   printedClosing = 518,312
 ```
 
-Every node except the LLM is proven in the real runtime.
-
 Reconciliation reports three states per row — `reconciled` (checked and it adds
 up), `flagged` (checked and it doesn't), `unverified` (nothing to check it
 against). A row is never counted as reconciled unless it was actually verified.
 
-The scanned path is verified too: the demo was rasterised to an **image-only
-PDF** (zero text layer), OCR'd live through a vision model, and run through the
-real nodes — it reconciled **16/16, closing 518,312**, identical to the digital
-run. That used Google Gemini vision as the OCR provider; the shipped OCR node
+The scanned test rasterised the demo to an **image-only PDF** (zero text layer),
+OCR'd it **live** through a vision model, and ran the output through the real
+nodes. It used Google Gemini vision as the OCR provider; the shipped OCR node
 points at Mistral, so the exact HTTP transport differs, but the
 scan → OCR → parse → reconcile path is proven end to end.
 
-**Not yet verified:** the LLM node filling the JSON schema against a live model;
-and reconciliation against a *real* statement that has a balance column — the
-16/16 above is the synthetic demo, and no real balance-column statement has been
-through it yet.
+**Two things remain unproven:**
+
+- The **LLM node** filling the JSON schema against a live model — the runs above
+  use a deterministic stub in its place, which exercises nodes 5 and 7 (the
+  moat) but not the model call itself.
+- Reconciliation against a **real statement with a balance column** — the 16/16
+  is the synthetic demo. Extraction is proven on a real 86-row card statement,
+  but no real balance-column statement has been reconciled yet.
 
 ## LLM provider
 
