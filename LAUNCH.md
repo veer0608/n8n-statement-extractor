@@ -6,7 +6,7 @@ Nothing claims reconciliation proven on a real balance-column statement, because
 it isn't yet.
 
 Launch discount: code `LAUNCH25`, $10 off (→ $19), first 25 uses. Auto-apply
-link: `https://veer0608.gumroad.com/l/statement-extractor/LAUNCH25`
+link: `https://veer0608.gumroad.com/l/statement-extractor?offer_code=LAUNCH25`
 
 ---
 
@@ -25,7 +25,7 @@ Lead post:
 > lines rejoined.
 >
 > Launch: first 25 copies at $19 (then $29) 👇
-> veer0608.gumroad.com/l/statement-extractor/LAUNCH25
+> veer0608.gumroad.com/l/statement-extractor?offer_code=LAUNCH25
 
 Optional thread reply:
 
@@ -154,5 +154,5 @@ bugs in 4, 7 and 8 are the engagement drivers.
 > All of this runs in n8n. Full workflow + a no-API-key test variant + a demo PDF
 > with the hard cases baked in:
 >
-> veer0608.gumroad.com/l/statement-extractor/LAUNCH25
+> veer0608.gumroad.com/l/statement-extractor?offer_code=LAUNCH25
 > (first 25 at $19)
