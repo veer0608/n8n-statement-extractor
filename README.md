@@ -80,6 +80,7 @@ Everything below ran in **real n8n (v2.35.7)**, not a simulation.
 |---|---|
 | Digital PDF → parse → reconcile | 16/16 rows, 100% reconciled |
 | Scanned (image-only) PDF → live OCR → reconcile | 16/16 rows, 100%, closing 518,312 — identical to digital |
+| Real LLM (Gemini) structures rows → reconcile | model mislabelled 1 row; node 7 **caught it** (see below) |
 | No-balance statement (card/invoice) | reports `not_applicable`, flags nothing (flaw #1) |
 | Locale: EU / Indian / round-number amounts | parsed correctly (flaw #4) |
 | All eight review flaws | fixed and verified (see below) |
@@ -103,14 +104,28 @@ nodes. It used Google Gemini vision as the OCR provider; the shipped OCR node
 points at Mistral, so the exact HTTP transport differs, but the
 scan → OCR → parse → reconcile path is proven end to end.
 
-**Two things remain unproven:**
+**The LLM node, tested against a real model, is the best evidence in this repo.**
+Driving the node's exact prompt and schema against live Gemini, the model
+structured 15 of 16 rows correctly and got one wrong — it labelled a salary
+disbursement a *credit* when the balance clearly falls. Node 7 caught it:
 
-- The **LLM node** filling the JSON schema against a live model — the runs above
-  use a deterministic stub in its place, which exercises nodes 5 and 7 (the
-  moat) but not the model call itself.
-- Reconciliation against a **real statement with a balance column** — the 16/16
-  is the synthetic demo. Extraction is proven on a real 86-row card statement,
-  but no real balance-column statement has been reconciled yet.
+```
+reconciled = 15   flagged = 1   reconciledPct = 93.8
+row 7 -> balance_mismatch: expected 967,284.50 got 541,684.50
+statementReconciles = False   printedClosingMatches = True
+```
+
+Note the last two: the model copied every *balance* correctly, so the endpoints
+matched (`printedClosingMatches: True`) — but the per-row walk still caught the
+movement error in the middle. That is the whole reason the check is row-by-row
+and not just opening-vs-closing. The product's core promise — the model slips,
+the reconciliation catches it instead of shipping it — is demonstrated, not
+asserted.
+
+**One thing remains unproven:** reconciliation against a *real* statement with a
+balance column. The 16/16 is the synthetic demo; extraction is proven on a real
+86-row card statement, but no real balance-column statement has been reconciled
+yet.
 
 ## LLM provider
 

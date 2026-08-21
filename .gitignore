@@ -12,3 +12,8 @@ ocr_text.txt
 workflow.ocrtest.json
 scanned_ocr_test.py
 *.png
+llm_node_test.py
+node5_out.json
+llm_prompt.txt
+llm_schema.json
+workflow.llmtest.json
