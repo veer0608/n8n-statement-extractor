@@ -85,9 +85,16 @@ printedOpening = 784,320   printedClosing = 518,312
 
 Every node except the LLM is proven in the real runtime.
 
-**Not yet verified:** the LLM node filling the JSON schema against a live model,
-and the OCR branch, which is stubbed against Mistral and needs credentials plus
-a real document URL.
+Reconciliation reports three states per row — `reconciled` (checked and it adds
+up), `flagged` (checked and it doesn't), `unverified` (nothing to check it
+against). A row is never counted as reconciled unless it was actually verified.
+
+**Not yet verified:** the LLM node filling the JSON schema against a live model;
+the live OCR call, which needs a scanned PDF and a provider key (the node is
+correctly shaped and fails loudly on an empty response, but has not run end to
+end); and reconciliation against a real statement that has a balance column —
+the 16/16 above is the synthetic demo, and no real balance-column statement has
+been through it yet.
 
 ## LLM provider
 
@@ -112,7 +119,26 @@ One Node-on-Windows trap if any local HTTP service is wired in: Node 24's
 only needs an explicit `127.0.0.1` in its base URL. curl hides this by falling
 back to IPv4.
 
-## Two bugs worth not reintroducing
+## Flaws found and fixed
+
+A review pass turned up eight flaws; all are addressed. The full-detail ones are
+below — the rest, in brief:
+
+| # | Flaw | Fix |
+|---|---|---|
+| 1 | No-balance statements (cards, invoices) flagged every row → "0% reconciled" | node 7 detects the absent balance column and reports `not_applicable`, not failure |
+| 2 | Numbers inside a description captured as phantom transaction amounts | node 5 emits `columnAmounts` (rightmost figures); the LLM picks money from those |
+| 3 | Listing overclaimed "every row reconciled" | reworded to the honest three-state model |
+| 4 | European `1.234,56` silently parsed to `1.23`; round amounts dropped | node 5 infers the decimal separator from the document (see below) |
+| 5 | First row passed as reconciled without being checked when opening was unknown | explicit `unverified` state; never a false pass |
+| 6 | Description strip removed only the first occurrence of a repeated amount | `split/join` instead of `replace` |
+| 7 | `date_out_of_order` hard-flagged value-date-sorted statements | demoted to an advisory note; statement-level chronological detection |
+| 8 | OCR branch silent on failure and wired to a nonexistent variable | robust text extraction + loud error; real base64 contract |
+
+## Silent bugs worth not reintroducing
+
+The two below and #4 above share a trait: they produced *wrong output with no
+error*. Those are the expensive ones.
 
 **Dates.** `new Date("14/06/2026")` is Invalid Date, because JS assumes
 MM/DD/YYYY. Worse, `new Date("02/06/2026")` succeeds and returns 6 February
@@ -121,6 +147,12 @@ infers the statement's date order once from the whole document (looking for any
 component > 12) and emits ISO. When every day is ≤ 12 the document is genuinely
 undecidable, so it assumes DMY and exposes `dateOrderConfident: false` rather
 than pretending. The LLM is handed a resolved date and told to copy it verbatim.
+
+**Decimal separator.** The amount regex assumed dot-decimal. European
+`1.234,56` matched as `1.23` — silent, wrong, and kept going. Node 5 now infers
+the decimal separator once from the whole document (a token containing both `.`
+and `,` reveals it — whichever is last is the decimal) and parses every amount
+against that convention.
 
 **The terminator regex.** `closing\s+bal\b` never matches `CLOSING BALANCE` —
 a word boundary cannot sit between `bal` and `ance`. It failed silently and
