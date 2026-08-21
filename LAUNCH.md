@@ -14,71 +14,72 @@ link: `https://veer0608.gumroad.com/l/statement-extractor?offer_code=LAUNCH25`
 
 Lead post:
 
-> Most n8n PDF-extraction templates pipe the statement into a vision model and
-> hope. That's why the numbers drift — and you find out when a client does.
+> Most n8n statement-extraction templates just throw the PDF at a vision model
+> and hope. The numbers drift, and you usually find out when a client does.
 >
-> I built one that works backwards: parse deterministically, let the LLM only
-> assign columns, then **check every row against the statement's own balance**.
-> Anything that doesn't add up gets flagged, not shipped.
+> Built one that works the other way round — parse deterministically, let the AI
+> only pick which column each number is, then check every row against the
+> statement's own balance. If it doesn't add up, it gets flagged, not shipped.
 >
-> Real 86-transaction statement: 86/86 rows extracted, correct dates, wrapped
-> lines rejoined.
+> Ran it on a real 86-transaction statement: every row extracted, dates right,
+> wrapped lines put back together.
 >
-> Launch: first 25 copies at $19 (then $29) 👇
+> First 25 copies at $19 (then $29) 👇
 > veer0608.gumroad.com/l/statement-extractor?offer_code=LAUNCH25
 
 Optional thread reply:
 
-> The two nodes that matter: one rebuilds real rows from messy PDF text
-> (stripping repeated headers, stitching page-split transactions, reading
-> (1,250.00) negatives). The other proves the result arithmetically. Everything
-> else is standard n8n you can rewire.
+> Two nodes do the real work. One rebuilds actual rows out of messy PDF text —
+> repeated headers, page-split transactions, `(1,250.00)` negatives. The other
+> proves the result with arithmetic. The rest is stock n8n you can rewire however
+> you like.
 
 ---
 
 ## LinkedIn
 
-> I kept hitting the same wall: every n8n workflow for extracting bank statements
-> would quietly get a number wrong, and there was no way to know which rows to
-> trust.
+> Same wall, over and over: an n8n workflow pulls a bank statement into JSON, it
+> looks right, and one number is quietly wrong — with no way to tell which.
 >
-> So I built one around a different rule — the LLM never touches a number it
-> could invent. Deterministic parsing produces every figure; the model only
-> decides which column it belongs to; then arithmetic checks every row against
-> the statement's own running balance. If a row doesn't reconcile, it's flagged
-> for review instead of silently shipped.
+> So I built this one around a rule I trust: the model never touches a number it
+> could make up. The parsing produces every figure; the AI just decides which
+> column it goes in; then the arithmetic checks each row against the statement's
+> running balance. Anything that doesn't reconcile gets flagged for review rather
+> than shipped.
 >
-> Tested on a real 86-transaction statement: 100% of rows extracted, across a
-> layout it had never seen.
+> I tested it on a real 86-transaction statement — a layout it had never seen —
+> and it pulled every row.
 >
-> It's live on Gumroad — first 25 copies at $19. Link in comments.
-> (Honest note: the reconciliation check needs a statement with a balance column,
-> so credit-card statements extract but don't reconcile. I say so on the listing.)
+> It's on Gumroad now, first 25 copies at $19. Link in the comments.
+>
+> One honest caveat: the reconciliation needs a statement with a balance column,
+> so credit-card statements extract fine but don't reconcile. That's on the
+> listing too — I'd rather you know before you buy.
 
 ---
 
 ## r/n8n
 
-Before posting, check the sub's current self-promotion rules — some weeks require
-a flair or restrict promo to a specific thread.
+Before posting, check the sub's current self-promotion rules — some weeks they
+want a flair, or keep promo to one thread.
 
-**Title:** Built an n8n statement-PDF extractor that reconciles every row against
-the balance column (or flags it)
+**Title:** I built an n8n statement-PDF extractor that reconciles every row
+against the balance column (or flags it)
 
 **Body:**
 
-> Got tired of PDF→LLM workflows drifting on real statements, so I built one that
-> parses deterministically and only uses the LLM to assign debit/credit/balance —
-> then walks the running balance to prove each row. Flagged rows go to a review
-> queue with page + row number.
+> Got fed up with PDF→LLM workflows drifting on real statements, so I built one
+> that parses deterministically and only lets the model assign
+> debit/credit/balance — then walks the running balance to check each row. Rows
+> that don't add up go to a review queue with the page and row number.
 >
-> Handles the stuff that breaks naive parsers: wrapped descriptions, transactions
-> split across a page break, (1,250.00) negatives, DD/MM vs MM/DD ambiguity,
-> scanned PDFs via OCR. Comes with a no-API-key test variant so you can see it run
+> It handles the usual troublemakers: wrapped descriptions, transactions split
+> across a page break, `(1,250.00)` negatives, the DD/MM vs MM/DD mess, scanned
+> PDFs through OCR. There's a no-API-key test version so you can watch it run
 > before wiring up a model.
 >
-> Launch price for this sub: $19 (code LAUNCH25). Happy to answer anything about
-> how the reconciliation node works.
+> Launch price for this sub is $19 (code LAUNCH25). Happy to get into how the
+> reconciliation node works if anyone's curious — it's the part I'm proud of.
 
 ---
 

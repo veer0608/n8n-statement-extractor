@@ -3,23 +3,22 @@
 [![Get it on Gumroad](https://img.shields.io/badge/Gumroad-Get%20the%20template-ff90e8?style=for-the-badge&logo=gumroad&logoColor=white)](https://veer0608.gumroad.com/l/statement-extractor)
 
 An n8n workflow that turns a bank statement or invoice PDF into structured rows,
-where **every row is arithmetically reconciled against the statement's own
-balance column, or flagged**.
+and checks the arithmetic on every one — each row comes back reconciled against
+the statement's own balance column, or flagged.
 
-Built as a sellable n8n template. The market rationale is in
-`../n8n_paid_ai_agents.xlsx`: document/PDF extraction is the thinnest-supplied
-theme on n8n's library (17 paid listings against 177 free ones averaging 3,034
-views — a demand-to-supply ratio of 178, four times any other category), and
-eleven of those seventeen are resume screeners. Nobody is selling accurate
-structured extraction.
+I built it as something to sell. When I looked at what was already on n8n's
+library, document/PDF extraction turned out to be the thinnest-covered corner
+there is: 17 paid listings against 177 free ones, and eleven of those seventeen
+are resume screeners. Almost nobody is selling accurate structured extraction.
+(The numbers I went off are in `../n8n_paid_ai_agents.xlsx` if you're curious.)
 
 ## The design rule
 
-**The LLM never touches a number it could invent.**
+**The model never touches a number it could invent.**
 
-Deterministic extraction produces the values, the LLM only assigns structure,
-then arithmetic proves the result. Competing templates pipe the PDF straight
-into a vision model and hope. That is why they drift.
+The extraction pulls the values out deterministically; the model only says which
+column each one goes in; then arithmetic checks the result. Everyone else pipes
+the PDF straight into a vision model and hopes — which is exactly why those drift.
 
 ```
 [1] Form Trigger (PDF upload)
