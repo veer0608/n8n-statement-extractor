@@ -74,6 +74,11 @@ Plus repeated page headers, footers, page numbers, and an address preamble.
 
 ## Verified state
 
+**Bottom line:** every stage of the pipeline — digital parse, live OCR, the live
+LLM, and reconciliation — has run in real n8n and behaved correctly, including
+catching a real model error. The one thing not yet done is reconciling a *real*
+statement that has a balance column; the number below is the synthetic demo.
+
 Everything below ran in **real n8n (v2.35.7)**, not a simulation.
 
 | Path | Result |
