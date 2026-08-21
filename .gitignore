@@ -17,3 +17,4 @@ node5_out.json
 llm_prompt.txt
 llm_schema.json
 workflow.llmtest.json
+_ziptest/
