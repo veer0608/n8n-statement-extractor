@@ -6,6 +6,8 @@ An n8n workflow that turns a bank statement or invoice PDF into structured rows,
 and checks the arithmetic on every one — each row comes back reconciled against
 the statement's own balance column, or flagged.
 
+![Rows reconcile one by one, then the model's mislabelled row gets caught and flagged](demo.gif)
+
 I built it as something to sell. When I looked at what was already on n8n's
 library, document/PDF extraction turned out to be the thinnest-covered corner
 there is: 17 paid listings against 177 free ones, and eleven of those seventeen
