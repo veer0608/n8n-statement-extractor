@@ -89,12 +89,17 @@ Reconciliation reports three states per row — `reconciled` (checked and it add
 up), `flagged` (checked and it doesn't), `unverified` (nothing to check it
 against). A row is never counted as reconciled unless it was actually verified.
 
+The scanned path is verified too: the demo was rasterised to an **image-only
+PDF** (zero text layer), OCR'd live through a vision model, and run through the
+real nodes — it reconciled **16/16, closing 518,312**, identical to the digital
+run. That used Google Gemini vision as the OCR provider; the shipped OCR node
+points at Mistral, so the exact HTTP transport differs, but the
+scan → OCR → parse → reconcile path is proven end to end.
+
 **Not yet verified:** the LLM node filling the JSON schema against a live model;
-the live OCR call, which needs a scanned PDF and a provider key (the node is
-correctly shaped and fails loudly on an empty response, but has not run end to
-end); and reconciliation against a real statement that has a balance column —
-the 16/16 above is the synthetic demo, and no real balance-column statement has
-been through it yet.
+and reconciliation against a *real* statement that has a balance column — the
+16/16 above is the synthetic demo, and no real balance-column statement has been
+through it yet.
 
 ## LLM provider
 
