@@ -1,0 +1,2 @@
+rowIndex,date,description,debit,credit,balance,movement,rowStatus,rowConfidence,flags
+7,2026-06-14,SALARY DISBURSEMENT JUN 2026 BATCH 1,,212800,541684.5,212800,flagged,0,balance_mismatch:expected_967284.50_got_541684.50

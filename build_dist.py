@@ -25,10 +25,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "dist")
 ZIP = os.path.join(HERE, "statement-extractor-n8n.zip")
 
-# Files that go to the buyer. SETUP.md already lives in dist/ and is hand-edited;
-# everything else is copied fresh from the repo root each build.
+# Files that go to the buyer. These live in dist/ and are not regenerated each
+# build: SETUP.md is hand-written; the two sample CSVs are captured from a real
+# run of the workflow on the demo statement (15 reconciled + 1 flagged).
+DIST_RESIDENT = ["SETUP.md", "sample_reconciled_rows.csv", "sample_flagged_for_review.csv"]
+# Copied fresh from the repo root each build.
 FROM_ROOT = ["workflow.json", "workflow.gemini.json", "workflow.test.json", "demo_statement.pdf"]
-IN_ZIP = ["SETUP.md"] + FROM_ROOT
+IN_ZIP = DIST_RESIDENT + FROM_ROOT
 
 # Anything matching these must NOT appear in a shipped file.
 FORBIDDEN = re.compile(
@@ -50,8 +53,9 @@ step("regenerated variants")
 
 # 2. copy shipping files into dist/ ------------------------------------------
 os.makedirs(DIST, exist_ok=True)
-if not os.path.exists(os.path.join(DIST, "SETUP.md")):
-    sys.exit("dist/SETUP.md is missing - it is the hand-written buyer guide, not generated.")
+for resident in DIST_RESIDENT:
+    if not os.path.exists(os.path.join(DIST, resident)):
+        sys.exit("dist/%s is missing - it is a dist-resident file, not generated." % resident)
 for f in FROM_ROOT:
     src, dst = os.path.join(HERE, f), os.path.join(DIST, f)
     with open(src, "rb") as a, open(dst, "wb") as b:

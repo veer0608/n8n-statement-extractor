@@ -5,7 +5,10 @@ cred_check.json
 unlock_card.py
 demo_card_unlocked.pdf
 *_unlocked.pdf
-dist/
+dist/*
+!dist/SETUP.md
+!dist/sample_reconciled_rows.csv
+!dist/sample_flagged_for_review.csv
 *.zip
 scanned_statement.pdf
 ocr_text.txt
