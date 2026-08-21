@@ -1,0 +1,464 @@
+{
+  "id": "stmtExtract0001",
+  "name": "Statement & Invoice PDF -> Reconciled Rows",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Statement / Invoice Extractor",
+        "formDescription": "Upload a PDF bank statement or invoice. You get back reconciled rows as CSV, plus a flag on anything that does not add up.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "PDF file",
+              "fieldType": "file",
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Opening balance (optional)",
+              "fieldType": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "trigger-form",
+      "name": "Upload PDF",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -820,
+        300
+      ],
+      "webhookId": "statement-extractor"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "PDF_file",
+        "options": {}
+      },
+      "id": "extract-pdf",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE 3 - TRIAGE\n// Decide whether this PDF has a usable text layer or needs OCR.\n// A scanned page yields almost no characters; a digital one yields hundreds.\n\nconst item = $input.first().json;\nconst text = item.text || '';\nconst pages = item.numpages || 1;\nconst charsPerPage = text.replace(/\\s/g, '').length / pages;\n\n// 80 chars/page is the empirical floor. Below it, the text layer is either\n// absent or is junk from a bad scan, and OCR beats parsing garbage.\nconst SCANNED_THRESHOLD = 80;\nconst isScanned = charsPerPage < SCANNED_THRESHOLD;\n\nreturn [{\n  json: {\n    text,\n    pages,\n    charsPerPage: Math.round(charsPerPage),\n    route: isScanned ? 'scanned' : 'digital',\n    openingBalanceHint: $('Upload PDF').first().json['Opening balance (optional)'] ?? null\n  },\n  binary: $input.first().binary\n}];"
+      },
+      "id": "triage",
+      "name": "Triage: digital or scanned",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "digital",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "digital"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "scanned",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "scanned"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-switch",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistral-ocr-latest\",\n  \"document\": {\n    \"type\": \"document_url\",\n    \"document_url\": \"{{ $json.documentUrl }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "ocr",
+      "name": "OCR (scanned only)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        60,
+        420
+      ],
+      "notes": "Only fires for scanned PDFs. Swap for any OCR provider - the contract is text in, text out."
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE 5 - LAYOUT NORMALISATION  *** THE MOAT ***\n//\n// Raw PDF text is not rows. It is a stream of lines in which one transaction\n// may span three lines, a page header repeats every page, and a row can be\n// split across a page break. Feeding that straight to an LLM is why the cheap\n// templates hallucinate. This node rebuilds real rows deterministically.\n\nconst src = $json.text || $json.pages?.map(p => p.markdown).join('\\n') || '';\nconst rawLines = src.split(/\\r?\\n/).map(l => l.replace(/ /g, ' ').trimEnd());\n\n// --- 1. Kill repeated headers and footers -------------------------------\n// Any line appearing on most pages at low variance is furniture, not data.\nconst freq = {};\nfor (const l of rawLines) {\n  const k = l.trim();\n  if (k.length > 3) freq[k] = (freq[k] || 0) + 1;\n}\nconst pageCount = Math.max(1, $json.pages?.length || $json.pages || 1);\nconst furniture = new Set(\n  Object.entries(freq)\n    .filter(([k, n]) => n >= Math.max(2, pageCount * 0.6) && !/\\d{2}[\\/\\-.]\\d{2}/.test(k))\n    .map(([k]) => k)\n);\n\n// Page-number lines: \"Page 3 of 11\", bare numerals.\nconst isPageNo = l => /^\\s*(page\\s*)?\\d+\\s*(of\\s*\\d+)?\\s*$/i.test(l);\n\nconst lines = rawLines.filter(l =>\n  l.trim() && !furniture.has(l.trim()) && !isPageNo(l)\n);\n\n// --- 2. Amount parsing ---------------------------------------------------\n// Handles 1,234.56 / (1,234.56) accounting negatives / trailing CR-DR markers.\nconst AMOUNT_RE = /\\(?-?(?:\\d{1,3}(?:,\\d{2,3})+|\\d+)\\.\\d{2}\\)?(?:\\s*(?:CR|DR))?/gi;\n\nfunction parseAmount(tok) {\n  const neg = /^\\(.*\\)$/.test(tok.trim()) || /DR\\s*$/i.test(tok);\n  const n = parseFloat(tok.replace(/[(),\\s]|CR|DR/gi, ''));\n  if (Number.isNaN(n)) return null;\n  return neg ? -Math.abs(n) : n;\n}\n\nfunction amountsIn(line) {\n  return (line.match(AMOUNT_RE) || []).map(parseAmount).filter(v => v !== null);\n}\n\n// --- 3. Boundary markers -------------------------------------------------\n// A new transaction starts with a date. Everything until the next date is a\n// continuation - that is how wrapped descriptions and page-break splits get\n// stitched back together.\nconst DATE_RE = /^\\s*(\\d{1,2}[\\/\\-.](?:\\d{1,2}|[A-Za-z]{3})[\\/\\-.]\\d{2,4}|\\d{4}-\\d{2}-\\d{2})/;\n\n// TERMINATOR: a summary line is NOT a continuation of the last transaction.\n// Without this the closing-balance figure is swallowed into the final row's\n// amount list, and on statements where that line carries its own total the\n// last row's balance silently becomes the wrong number.\n// NOTE: \\w* after \"bal\", not \\b - a word boundary cannot match between\n// \"bal\" and \"ance\", so \\b here silently never fires on \"CLOSING BALANCE\".\nconst TERMINATOR_RE = /^\\s*(closing\\s+bal\\w*|balance\\s+(c\\/f|carried\\s+f\\w*)|total\\b|grand\\s+total\\b|net\\s+(movement|total)\\b|summary\\b)/i;\nconst OPENING_RE = /^\\s*(opening\\s+bal\\w*|balance\\s+(b\\/f|brought\\s+f\\w*))/i;\n\n// --- 4. Row assembly -----------------------------------------------------\nconst rows = [];\nlet current = null;\nlet printedOpening = null;\nlet printedClosing = null;\n\nfor (const line of lines) {\n  const bare = line.trim();\n\n  if (OPENING_RE.test(bare) && !DATE_RE.test(bare)) {\n    const a = amountsIn(bare);\n    if (a.length) printedOpening = a[a.length - 1];\n    continue;                       // never a transaction, never a continuation\n  }\n\n  if (TERMINATOR_RE.test(bare) && !DATE_RE.test(bare)) {\n    const a = amountsIn(bare);\n    if (a.length) printedClosing = a[a.length - 1];\n    if (current) { rows.push(current); current = null; }\n    continue;                       // closes the open row and swallows nothing\n  }\n\n  if (DATE_RE.test(line)) {\n    if (current) rows.push(current);\n    current = { raw: line, continuations: [] };\n  } else if (current) {\n    current.continuations.push(bare);\n  }\n  // Lines before the first date are preamble (account no, address) - dropped.\n}\nif (current) rows.push(current);\n\n// --- 5. Date format inference -------------------------------------------\n// \"02/06/2026\" is 2 June or 6 February depending on the issuer, and JS's\n// Date() silently assumes MM/DD. That is real corruption, not a crash: days\n// <= 12 parse to the WRONG date without erroring, days > 12 throw. So infer\n// the order ONCE from the whole statement, then parse explicitly. The LLM is\n// never asked to guess a date - it receives an ISO string already resolved.\nconst MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6,\n                 jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };\n\nconst flats = rows.map(r =>\n  [r.raw, ...r.continuations].join(' ').replace(/\\s{2,}/g, ' ').trim());\nconst dateStrs = flats.map(f => (f.match(DATE_RE) || [''])[0].trim());\n\nlet dayFirst = 0, monthFirst = 0;\nfor (const s of dateStrs) {\n  const m = s.match(/^(\\d{1,2})[\\/\\-.](\\d{1,2})[\\/\\-.]\\d{2,4}$/);\n  if (!m) continue;\n  if (+m[1] > 12) dayFirst++;    // first component cannot be a month\n  if (+m[2] > 12) monthFirst++;  // second component cannot be a month\n}\n\nlet dateOrder = 'DMY';\nlet dateOrderConfident = false;\nif (dayFirst && !monthFirst)      { dateOrder = 'DMY'; dateOrderConfident = true; }\nelse if (monthFirst && !dayFirst) { dateOrder = 'MDY'; dateOrderConfident = true; }\nelse if (dayFirst && monthFirst)  { dateOrder = 'CONFLICT'; }\n// else every day is <= 12: genuinely undecidable from the document alone.\n// DMY is assumed and dateOrderConfident stays false, so the caller can see it.\n\nfunction toIso(s) {\n  if (!s) return null;\n  let m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);\n  if (m) return s;\n\n  m = s.match(/^(\\d{1,2})[\\/\\-.]([A-Za-z]{3})[\\/\\-.](\\d{2,4})$/);\n  if (m) {\n    const mo = MONTHS[m[2].toLowerCase()];\n    if (!mo) return null;\n    const y = m[3].length === 2 ? '20' + m[3] : m[3];\n    return `${y}-${String(mo).padStart(2, '0')}-${m[1].padStart(2, '0')}`;\n  }\n\n  m = s.match(/^(\\d{1,2})[\\/\\-.](\\d{1,2})[\\/\\-.](\\d{2,4})$/);\n  if (m) {\n    if (dateOrder === 'CONFLICT') return null;\n    const d  = dateOrder === 'MDY' ? m[2] : m[1];\n    const mo = dateOrder === 'MDY' ? m[1] : m[2];\n    const y  = m[3].length === 2 ? '20' + m[3] : m[3];\n    if (+mo < 1 || +mo > 12 || +d < 1 || +d > 31) return null;\n    return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;\n  }\n  return null;\n}\n\n// --- 6. Field extraction (deterministic - the LLM never sees a bare number)\nconst statement = {\n  printedOpening, printedClosing, rowCount: rows.length,\n  dateOrder, dateOrderConfident\n};\n\nconst candidates = rows.map((r, i) => {\n  const flat = flats[i];\n  const tokens = flat.match(AMOUNT_RE) || [];\n  const amounts = tokens.map(parseAmount).filter(v => v !== null);\n  const dateStr = dateStrs[i];\n  const dateIso = toIso(dateStr);\n\n  // Description = the row with dates and money stripped out.\n  let description = flat.replace(DATE_RE, '');\n  for (const t of tokens) description = description.replace(t, '');\n  description = description.replace(/\\s{2,}/g, ' ').trim();\n\n  return {\n    rowIndex: i,\n    dateStr,\n    dateIso,              // resolved here, never guessed downstream\n    description,\n    amounts,              // ordered left-to-right as printed\n    amountCount: amounts.length,\n    wrapped: r.continuations.length > 0,\n    raw: flat,\n    _statement: statement\n  };\n});\n\n// Convention check: on most statements the LAST amount on a row is the running\n// balance. Verified downstream in node 7 - never assumed to be true here.\nreturn candidates.map(c => ({ json: c }));"
+      },
+      "id": "normalise",
+      "name": "Layout normalisation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 40,
+        "options": {}
+      },
+      "id": "batch",
+      "name": "Batch rows (page-sized)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        500,
+        300
+      ],
+      "notes": "Batching keeps LLM context small. Accuracy on late pages collapses without this."
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are labelling ALREADY-EXTRACTED statement rows. You assign structure only.\n\nHARD RULES:\n- Never invent, correct, round or re-derive any number.\n- Use only values present in `amounts`, exactly as given.\n- If a field is not present, return null. Do not guess.\n\nRow:\nraw: {{ $json.raw }}\ndate_iso: {{ $json.dateIso }}   (ALREADY RESOLVED - copy it into `date` verbatim, or null if empty. Never re-derive a date from the raw text.)\ndescription: {{ $json.description }}\namounts_in_print_order: {{ JSON.stringify($json.amounts) }}\n\nAssign which amount is the debit, the credit, and the running balance.",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "id": "llm-chain",
+      "name": "Structure rows (LLM)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "llm-model",
+      "name": "Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"date\": { \"type\": [\"string\", \"null\"], \"description\": \"ISO yyyy-mm-dd\" },\n    \"description\": { \"type\": [\"string\", \"null\"] },\n    \"reference\": { \"type\": [\"string\", \"null\"] },\n    \"debit\": { \"type\": [\"number\", \"null\"] },\n    \"credit\": { \"type\": [\"number\", \"null\"] },\n    \"balance\": { \"type\": [\"number\", \"null\"] }\n  },\n  \"required\": [\"date\", \"description\", \"debit\", \"credit\", \"balance\"]\n}"
+      },
+      "id": "parser",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE 7 - VALIDATION & RECONCILIATION  *** THE PROOF ***\n//\n// This is the claim you can make that nobody else in this market can:\n// every row is checked against the statement's own arithmetic, or flagged.\n// Confidence is scored PER FIELD, not per row - a clean date beside an\n// ambiguous amount should flag the amount only.\n\nconst items = $input.all().map(i => i.json);\nconst TOL = 0.01; // one paisa/cent of float tolerance\n\n// Opening balance: prefer what the STATEMENT printed over what the user typed.\n// The terminator rule in node 5 captures both printed anchors; the form field\n// is only a fallback for statements that print neither.\nconst stmt = items.length ? (items[0]._statement || {}) : {};\nconst hint = $('Triage: digital or scanned').first().json.openingBalanceHint;\nconst openingBalance = stmt.printedOpening ?? hint ?? null;\n\nconst out = [];\nlet prevBalance = openingBalance;\nlet movements = 0;\nlet prevDate = null;\n\nfor (let i = 0; i < items.length; i++) {\n  const r = items[i];\n  const flags = [];\n  const confidence = { date: 1, description: 1, debit: 1, credit: 1, balance: 1 };\n\n  // --- date ---------------------------------------------------------------\n  // Strict ISO only. Never hand an ambiguous dd/mm string to Date() - it\n  // assumes MM/DD and corrupts every day <= 12 without raising anything.\n  // Node 5 has already resolved the statement's date order.\n  const iso = typeof r.date === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(r.date)\n    ? r.date : null;\n  const d = iso ? new Date(iso + 'T00:00:00Z') : null;\n  if (!d || Number.isNaN(d.getTime())) {\n    flags.push('date_unparseable');\n    confidence.date = 0;\n  } else {\n    // Statements run forward. A backwards step usually means two rows merged.\n    if (prevDate && d < prevDate) {\n      flags.push('date_out_of_order');\n      confidence.date = 0.4;\n    }\n    prevDate = d;\n  }\n\n  // --- movement -----------------------------------------------------------\n  const debit = Number(r.debit) || 0;\n  const credit = Number(r.credit) || 0;\n  if (debit && credit) {\n    flags.push('both_debit_and_credit');\n    confidence.debit = confidence.credit = 0.3;\n  }\n  if (!debit && !credit) {\n    flags.push('no_movement');\n    confidence.debit = confidence.credit = 0.2;\n  }\n  const movement = credit - debit;\n\n  // --- running balance: the load-bearing check ----------------------------\n  const bal = r.balance === null || r.balance === undefined ? null : Number(r.balance);\n  if (bal === null) {\n    flags.push('balance_missing');\n    confidence.balance = 0;\n  } else if (prevBalance !== null && prevBalance !== undefined) {\n    const expected = prevBalance + movement;\n    const drift = Math.abs(expected - bal);\n    if (drift > TOL) {\n      flags.push(`balance_mismatch:expected_${expected.toFixed(2)}_got_${bal.toFixed(2)}`);\n      confidence.balance = 0;\n      // A mismatch usually means the MOVEMENT was misread, not the balance -\n      // the balance is printed, the split into debit/credit is inferred.\n      confidence.debit = Math.min(confidence.debit, 0.2);\n      confidence.credit = Math.min(confidence.credit, 0.2);\n    }\n  }\n\n  if (bal !== null) prevBalance = bal;\n  movements += movement;\n\n  const rowConfidence = Math.min(...Object.values(confidence));\n\n  out.push({\n    json: {\n      ...r,\n      rowIndex: i,\n      movement: Number(movement.toFixed(2)),\n      flags,\n      confidence,\n      rowConfidence,\n      reconciled: flags.length === 0\n    }\n  });\n}\n\n// --- statement-level close-out ---------------------------------------------\nconst opening = openingBalance;\nconst closing = out.length ? out[out.length - 1].json.balance : null;\n\nlet statementReconciles = null;\nif (opening !== null && closing !== null) {\n  statementReconciles = Math.abs((opening + movements) - closing) <= TOL;\n}\n\n// Independent second check: the statement's OWN printed closing figure. This\n// catches a whole class of errors the running-balance walk cannot see - if a\n// transaction row was missed entirely, every remaining row still chains\n// correctly and only this comparison notices the gap.\nlet printedClosingMatches = null;\nif (stmt.printedClosing !== null && stmt.printedClosing !== undefined && closing !== null) {\n  printedClosingMatches = Math.abs(stmt.printedClosing - closing) <= TOL;\n}\n\nconst flagged = out.filter(o => !o.json.reconciled).length;\nfor (const o of out) {\n  o.json._summary = {\n    rows: out.length,\n    flagged,\n    reconciledPct: out.length ? Number(((out.length - flagged) / out.length * 100).toFixed(1)) : 0,\n    statementReconciles,\n    printedClosingMatches,\n    dateOrder: stmt.dateOrder ?? null,\n    dateOrderConfident: stmt.dateOrderConfident ?? null,\n    printedOpening: stmt.printedOpening ?? null,\n    printedClosing: stmt.printedClosing ?? null,\n    sumOfMovements: Number(movements.toFixed(2)),\n    closingBalance: closing\n  };\n}\n\nreturn out;"
+      },
+      "id": "reconcile",
+      "name": "Validate & reconcile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.reconciled }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-reconciled",
+      "name": "Reconciled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "csv",
+        "options": {
+          "fileName": "reconciled_rows.csv"
+        }
+      },
+      "id": "to-csv",
+      "name": "Clean rows -> CSV",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "csv",
+        "options": {
+          "fileName": "flagged_for_review.csv"
+        }
+      },
+      "id": "to-csv-flagged",
+      "name": "Flagged -> review queue",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Upload PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Triage: digital or scanned",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triage: digital or scanned": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Layout normalisation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OCR (scanned only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR (scanned only)": {
+      "main": [
+        [
+          {
+            "node": "Layout normalisation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Layout normalisation": {
+      "main": [
+        [
+          {
+            "node": "Batch rows (page-sized)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch rows (page-sized)": {
+      "main": [
+        [
+          {
+            "node": "Validate & reconcile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Structure rows (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structure rows (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Batch rows (page-sized)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structure rows (LLM)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Structure rows (LLM)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & reconcile": {
+      "main": [
+        [
+          {
+            "node": "Reconciled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconciled?": {
+      "main": [
+        [
+          {
+            "node": "Clean rows -> CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flagged -> review queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
