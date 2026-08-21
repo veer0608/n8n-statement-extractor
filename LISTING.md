@@ -1,7 +1,8 @@
 # Statement & Invoice PDF → Reconciled Rows (n8n workflow)
 
-**Every row is checked against the statement's own balance column. If it doesn't
-add up, it gets flagged instead of shipped.**
+**Every row is checked against the statement's own balance column. Each one comes
+back reconciled, flagged, or — when there's nothing to check it against — marked
+unverified. Nothing wrong ever passes as right.**
 
 Most PDF-extraction workflows pipe the file straight into a vision model and
 hope. That's why the numbers drift, and why you don't find out until a client
@@ -45,9 +46,14 @@ A reconciliation pass that runs after extraction:
   see on its own
 - Confidence scored **per field**, not per row, so an ambiguous amount flags the
   amount and not the clean date beside it
+- Three honest outcomes per row — **reconciled** (checked and it adds up),
+  **flagged** (checked and it doesn't), **unverified** (no balance to check it
+  against, e.g. the opening row or a card statement). A row is never counted as
+  reconciled unless it was actually verified.
 
-Clean rows go to CSV or Google Sheets. Flagged rows go to a review queue with the
-page and row number attached. You always know which rows you can trust.
+Reconciled rows go to CSV or Google Sheets. Flagged rows go to a review queue with
+the page and row number attached. You always know which rows you can trust — and
+which ones the workflow couldn't vouch for.
 
 ## What's included
 
