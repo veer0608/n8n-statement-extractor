@@ -1,6 +1,6 @@
 # Statement & Invoice PDF → Reconciled Rows
 
-[![Get it on Gumroad](https://img.shields.io/badge/Gumroad-Get%20the%20template%20%2419-ff90e8?style=for-the-badge&logo=gumroad&logoColor=white)](https://veer0608.gumroad.com/l/statement-extractor?offer_code=LAUNCH25)
+[![Get it on Gumroad](https://img.shields.io/badge/Gumroad-Get%20the%20template-ff90e8?style=for-the-badge&logo=gumroad&logoColor=white)](https://veer0608.gumroad.com/l/statement-extractor)
 
 An n8n workflow that turns a bank statement or invoice PDF into structured rows,
 where **every row is arithmetically reconciled against the statement's own
