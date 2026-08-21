@@ -55,6 +55,19 @@ Reconciled rows go to CSV or Google Sheets. Flagged rows go to a review queue wi
 the page and row number attached. You always know which rows you can trust — and
 which ones the workflow couldn't vouch for.
 
+## This actually caught a mistake in testing
+
+Running the workflow against a live model, the AI mislabelled one transaction — it
+tagged a salary payment as money *in* when the balance clearly showed money *out*.
+
+The workflow flagged it. `balance mismatch: expected 967,284.50, got 541,684.50` —
+sent to review, not shipped. Every other row passed.
+
+That's the whole point. AI models make this kind of slip on ambiguous rows; the
+difference here is that the arithmetic catches it before it reaches your books.
+The closing balance even matched — the error was buried in the middle, exactly
+where an "add up the total" check would miss it and the row-by-row walk doesn't.
+
 ## What's included
 
 - The n8n workflow (`.json`, import and run)
