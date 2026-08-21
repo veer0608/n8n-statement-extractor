@@ -1,0 +1,88 @@
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background:
+      radial-gradient(1200px 700px at 82% -8%, #16324f 0%, rgba(22,50,79,0) 55%),
+      radial-gradient(900px 600px at 8% 110%, #10233a 0%, rgba(16,35,58,0) 60%),
+      #0a1220;
+    color: #eaf0f7;
+    position: relative;
+  }
+  .wrap { position: absolute; inset: 0; display: flex; padding: 64px 72px; gap: 52px; }
+
+  /* left column: copy */
+  .left { width: 560px; display: flex; flex-direction: column; }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 15px; letter-spacing: .16em; text-transform: uppercase;
+    color: #7fb0e0; font-weight: 600; margin-bottom: 26px;
+  }
+  .kicker .dot { width: 9px; height: 9px; border-radius: 50%; background: #ff8a3d; box-shadow: 0 0 14px #ff8a3d; }
+  h1 { font-size: 62px; line-height: 1.03; font-weight: 800; letter-spacing: -.02em; }
+  h1 .arrow { color: #4aa3ff; }
+  h1 .accent { color: #56d6a0; }
+  .sub { margin-top: 26px; font-size: 25px; line-height: 1.45; color: #b6c4d6; font-weight: 400; }
+  .sub b { color: #eaf0f7; font-weight: 700; }
+  .statrow { margin-top: auto; display: flex; gap: 16px; }
+  .stat {
+    background: rgba(86,214,160,.10); border: 1px solid rgba(86,214,160,.35);
+    border-radius: 12px; padding: 14px 20px;
+  }
+  .stat .n { font-size: 30px; font-weight: 800; color: #6ee2ad; line-height: 1; }
+  .stat .l { font-size: 14px; color: #9fb3c8; margin-top: 6px; letter-spacing: .02em; }
+  .foot { margin-top: 22px; font-size: 16px; color: #6f8199; letter-spacing: .04em; }
+  .foot b { color: #9db4cc; }
+
+  /* right column: rows visual */
+  .right { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+  .card {
+    background: linear-gradient(180deg, #101d30 0%, #0d1928 100%);
+    border: 1px solid #22374f; border-radius: 16px;
+    padding: 22px 24px; box-shadow: 0 30px 60px rgba(0,0,0,.45);
+  }
+  .card .hd {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: #6f8199; letter-spacing: .12em; text-transform: uppercase;
+    padding-bottom: 14px; border-bottom: 1px solid #1c2c40; margin-bottom: 6px;
+  }
+  .row {
+    display: grid; grid-template-columns: 92px 1fr 108px 34px;
+    align-items: center; gap: 10px; padding: 12px 4px;
+    border-bottom: 1px solid #16243700;
+  }
+  .row + .row { border-top: 1px solid #172538; }
+  .row .d { font-size: 15px; color: #8fa6be; font-variant-numeric: tabular-nums; }
+  .row .desc { font-size: 15px; color: #cdd9e6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .amt { font-size: 16px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; color: #e6edf5; }
+  .mark { justify-self: center; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; }
+  .ok  { background: rgba(86,214,160,.16); color: #56d6a0; border: 1px solid rgba(86,214,160,.5); }
+  .flag{ background: rgba(255,138,61,.16); color: #ff9a52; border: 1px solid rgba(255,138,61,.55); }
+  .flagged { background: rgba(255,138,61,.06); border-radius: 8px; }
+  .flagnote { grid-column: 2 / 4; font-size: 12.5px; color: #ff9a52; padding-top: 2px; }
+</style>
+
+<div class="wrap">
+  <div class="left">
+    <div class="kicker"><span class="dot"></span> n8n workflow · PDF extraction</div>
+    <h1>Statement&nbsp;PDF<br><span class="arrow">→</span> <span class="accent">Reconciled</span> Rows</h1>
+    <div class="sub">Every row checked against the statement's own balance column. <b>If it doesn't add up, it's flagged</b> — not shipped.</div>
+    <div class="statrow">
+      <div class="stat"><div class="n">86 / 86</div><div class="l">rows on a real statement</div></div>
+      <div class="stat"><div class="n">16 / 16</div><div class="l">reconciled, to the balance</div></div>
+    </div>
+    <div class="foot">Handles <b>wrapped rows</b> · <b>page-split lines</b> · <b>(1,250.00)</b> negatives · scanned PDFs</div>
+  </div>
+
+  <div class="right">
+    <div class="card">
+      <div class="hd"><span>Extracted &amp; reconciled</span><span>balance ✓</span></div>
+      <div class="row"><div class="d">02 Jun</div><div class="desc">NEFT IN · Orion Logistics</div><div class="amt">826,820.00</div><div class="mark ok">✓</div></div>
+      <div class="row"><div class="d">05 Jun</div><div class="desc">RTGS · Harbourside Supplies LLP</div><div class="amt">728,574.50</div><div class="mark ok">✓</div></div>
+      <div class="row"><div class="d">12 Jun</div><div class="desc">Card reversal · merchant dispute</div><div class="amt">754,484.50</div><div class="mark ok">✓</div></div>
+      <div class="row flagged"><div class="d">14 Jun</div><div class="desc">Salary disbursement · batch 1</div><div class="amt">541,684.50</div><div class="mark flag">!</div><div class="flagnote">balance mismatch — sent to review, not shipped</div></div>
+      <div class="row"><div class="d">22 Jun</div><div class="desc">NEFT IN · Kestrel Industries</div><div class="amt">634,877.25</div><div class="mark ok">✓</div></div>
+    </div>
+  </div>
+</div>
