@@ -14,6 +14,7 @@ balance column** — anything that doesn't add up is flagged instead of shipped.
 | `workflow.gemini.json` | Same workflow, wired for Google Gemini instead. |
 | `workflow.test.json` | A headless version that runs with **no API key at all** — use it to see the pipeline work before you wire up a model. |
 | `demo_statement.pdf` | A synthetic statement with the hard cases baked in (wrapped rows, a page-split transaction, a `(1,250.00)` negative). Safe to test with. |
+| `demo_statement_2.pdf` | A second, deliberately different layout — EU number format (`1.234,56`), `DD-MMM-YYYY` dates, `BALANCE B/F`/`C/F` labels, Withdrawal/Deposit columns. Both reconcile; it's here to show the workflow isn't tuned to one bank's layout. |
 | `sample_reconciled_rows.csv` | Real output from running the workflow on the demo — the 15 clean rows, so you can see the exact shape you get back. |
 | `sample_flagged_for_review.csv` | The one row the workflow flagged in that run (the model mislabelled a debit as a credit), with the balance-mismatch reason — this is what a caught error looks like. |
 

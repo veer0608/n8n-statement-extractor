@@ -30,7 +30,8 @@ ZIP = os.path.join(HERE, "statement-extractor-n8n.zip")
 # run of the workflow on the demo statement (15 reconciled + 1 flagged).
 DIST_RESIDENT = ["SETUP.md", "sample_reconciled_rows.csv", "sample_flagged_for_review.csv"]
 # Copied fresh from the repo root each build.
-FROM_ROOT = ["workflow.json", "workflow.gemini.json", "workflow.test.json", "demo_statement.pdf"]
+FROM_ROOT = ["workflow.json", "workflow.gemini.json", "workflow.test.json",
+             "demo_statement.pdf", "demo_statement_2.pdf"]
 IN_ZIP = DIST_RESIDENT + FROM_ROOT
 
 # Anything matching these must NOT appear in a shipped file.
