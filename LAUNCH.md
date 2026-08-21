@@ -79,3 +79,80 @@ the balance column (or flags it)
 >
 > Launch price for this sub: $19 (code LAUNCH25). Happy to answer anything about
 > how the reconciliation node works.
+
+---
+
+## X / Twitter — technical thread (the two nodes)
+
+A build-in-public deep dive. Higher-credibility play for the dev audience; the
+bugs in 4, 7 and 8 are the engagement drivers.
+
+**1/**
+> An n8n workflow to turn bank-statement PDFs into clean rows is ~10 nodes. Nine
+> are stock plumbing. Two do all the real work — and they're where every cheap
+> template cuts the corner that makes it wrong.
+>
+> Here's what's actually in them 🧵
+
+**2/**
+> Node 1: layout normalisation.
+>
+> Raw PDF text isn't rows. One transaction can span three lines. A page header
+> repeats every page. A row can split across a page break.
+>
+> Feed that straight to an LLM and it hallucinates. So I rebuild real rows
+> *deterministically* first.
+
+**3/**
+> The rule for stitching: a new transaction starts with a date. Everything until
+> the next date is a continuation of the current row.
+>
+> That one rule rejoins wrapped descriptions AND page-split transactions — the
+> description stranded on page 2 gets pulled back onto its row.
+
+**4/**
+> Then the bug that would've shipped silently:
+>
+> `new Date("14/06/2026")` → Invalid Date (JS assumes MM/DD).
+> Worse: `new Date("02/06/2026")` → 6 February, not 2 June.
+>
+> Days ≤ 12 corrupt with no error. Days > 12 throw. Half your rows wrong, zero
+> warnings.
+
+**5/**
+> Fix: infer the statement's date order *once* from the whole document — find any
+> component > 12, that settles DD/MM vs MM/DD — then parse explicitly.
+>
+> When every day is ≤ 12 it's genuinely undecidable, so it flags low confidence
+> instead of guessing.
+
+**6/**
+> Node 2: reconciliation. The part nobody else ships.
+>
+> It walks the running balance: `balance[n-1] ± movement = balance[n]`, on every
+> row. A row that doesn't add up gets flagged — with its page and row number —
+> instead of silently shipped.
+
+**7/**
+> One check I'm proud of: it also compares against the statement's *printed*
+> closing figure.
+>
+> A running-balance walk can't see a row that went missing entirely — every
+> surviving row still chains correctly. Only the printed-total comparison catches
+> the gap.
+
+**8/**
+> Last one, a lesson: my terminator rule `closing\s+bal\b` never matched
+> "CLOSING BALANCE".
+>
+> A word boundary can't sit between "bal" and "ance". It failed *identically* to
+> having no rule at all — no error, just wrong. `\b` → `\w*`.
+>
+> Silent bugs are the expensive ones.
+
+**9/**
+> All of this runs in n8n. Full workflow + a no-API-key test variant + a demo PDF
+> with the hard cases baked in:
+>
+> veer0608.gumroad.com/l/statement-extractor/LAUNCH25
+> (first 25 at $19)
