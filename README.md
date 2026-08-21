@@ -72,6 +72,16 @@ cheap templates:
 
 Plus repeated page headers, footers, page numbers, and an address preamble.
 
+**A note on generating the demo — column collision.** The first version of the
+generator placed the credit and balance columns too close, and at 8pt they
+overlapped in the PDF's text layer, which extracted as `42,5008.2060,820.00` —
+two numbers fused into garbage. Only 5 of 16 rows reconciled, and it looked like
+a parser bug. It wasn't: overlapping columns are a fault in the *source
+document*, and no amount of parsing recovers them cleanly. The fix was in the
+generator's geometry (`COL_DEBIT` / `COL_CREDIT` spacing in `make_demo_pdf.py`),
+not the workflow. Worth remembering when a real statement extracts as fused
+numbers — suspect the PDF's layout before the parser.
+
 ## Verified state
 
 **Bottom line:** every stage of the pipeline — digital parse, live OCR, the live
